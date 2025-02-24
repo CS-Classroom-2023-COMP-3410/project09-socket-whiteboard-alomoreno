@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Collaborative Whiteboard</title>
+    <style>
+        canvas { border: 1px solid black; }
+    </style>
+</head>
+<body>
+    <canvas id="whiteboard" width="800" height="600"></canvas>
+    <button id="clearButton">Clear Board</button>
+    <input type="color" id="colorPicker" value="#000000">
+
+    <script type="module">
+        import io from 'socket.io-client';
+
+        const socket = io('http://localhost:3000'); 
+        const canvas = document.getElementById('whiteboard');
+        const ctx = canvas.getContext('2d');
+        const clearButton = document.getElementById('clearButton');
+        const colorPicker = document.getElementById('colorPicker');
+
+        let isDrawing = false;
+        let currentColor = colorPicker.value;
+        let brushSize = 5; 
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+           if (isDrawing) {
+              const x = e.offsetX;
+              const y = e.offsetY;
+
+              socket.emit('draw', { x, y, color: currentColor, size: brushSize}); // Emit to server, not draw directly!
+           }
+        });
+
+
+        canvas.addEventListener('mouseup', () => isDrawing = false);
+        canvas.addEventListener('mouseout', () => isDrawing = false);
+
+        colorPicker.addEventListener('change', (e) => {
+          currentColor = e.target.value;
+        });
+
+        socket.on('connect', () => {
+          console.log('Connected to server!');
+        });
+
+        socket.on('boardUpdate', (board) => {
+            board.forEach(drawData => drawLine(drawData));
+        });
+
+        socket.on('draw', (data) => {
+            drawLine(data);
+        });
+
+        socket.on('clearBoard', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        clearButton.addEventListener('click', () => {
+            socket.emit('clearBoard');
+        });
+
+        function drawLine(data) {
+            ctx.strokeStyle = data.color;
+            ctx.lineWidth = data.size;
+            ctx.beginPath();
+            ctx.arc(data.x, data.y, data.size / 2, 0, 2 * Math.PI) //Draw a circle instead of line for simplicity
+            ctx.stroke();
+        }
+
+    </script>
+</body>
+</html>
